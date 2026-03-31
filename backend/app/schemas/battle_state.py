@@ -96,6 +96,7 @@ class RankedAction(BaseModel):
     score: float
     confidence: float
     notes: List[str] = Field(default_factory=list)
+    scoreBreakdown: ScoreBreakdownResponse
 
 
 class EvaluatePositionResponse(BaseModel):
@@ -104,3 +105,11 @@ class EvaluatePositionResponse(BaseModel):
     rankedActions: List[RankedAction]
     explanation: str
     assumptionsUsed: List[str]
+
+
+class ScoreBreakdownResponse(BaseModel):
+    tactical: float
+    positional: float
+    strategic: float
+    uncertainty: float
+    total: float

@@ -4,8 +4,8 @@ import math
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Dict, List, Tuple
-from app.inference.set_inference import infer_opposing_active_set
-from app.domain.actions import EvaluatedAction, MoveAction, SwitchAction
+
+from app.domain.actions import EvaluatedAction, MoveAction, ScoreBreakdown, SwitchAction
 from app.domain.battle_state import BattleState, PokemonState
 from app.explain.explanation_engine import (
     build_assumptions,
@@ -13,6 +13,7 @@ from app.explain.explanation_engine import (
     build_reasoning_summary,
     build_recommendation_explanation,
 )
+from app.inference.set_inference import infer_opposing_active_set
 from app.engine.damage_engine import estimate_damage
 from app.engine.field_engine import apply_field_modifiers
 from app.engine.speed_engine import (
@@ -34,7 +35,7 @@ def softmax(values: Dict[str, float], temperature: float = 8.0) -> Dict[str, flo
     return {k: exps[k] / total for k in values}
 
 
-def score_move(
+def score_move_tactical(
     min_pct: float,
     max_pct: float,
     type_mult: float,
@@ -100,7 +101,10 @@ def apply_relevant_boosts(
     return attacking_pokemon, defending_pokemon, notes
 
 
-def best_stab_type_into_target(attacking_pokemon: PokemonState, defending_pokemon: PokemonState) -> Tuple[str | None, float]:
+def best_stab_type_into_target(
+    attacking_pokemon: PokemonState,
+    defending_pokemon: PokemonState,
+) -> Tuple[str | None, float]:
     best_type = None
     best_mult = -1.0
 
@@ -228,6 +232,74 @@ def survivability_score_adjustment(
     return adjustment, notes
 
 
+def build_move_score_breakdown(
+    move,
+    dmg: dict,
+    order_context: str,
+    retaliation: dict,
+) -> Tuple[ScoreBreakdown, List[str]]:
+    notes: List[str] = []
+    base_power = move.power or 0
+
+    tactical = score_move_tactical(
+        min_pct=dmg["minPercent"],
+        max_pct=dmg["maxPercent"],
+        type_mult=dmg["typeMultiplier"],
+        category=move.category,
+        base_power=base_power,
+    )
+
+    turn_adjustment, turn_notes = turn_order_score_adjustment(
+        order_context=order_context,
+        min_pct=dmg["minPercent"],
+        max_pct=dmg["maxPercent"],
+        category=move.category,
+        base_power=base_power,
+    )
+    tactical += turn_adjustment
+    notes.extend(turn_notes)
+
+    survivability_adjustment, survivability_notes = survivability_score_adjustment(
+        order_context=order_context,
+        retaliation=retaliation,
+        category=move.category,
+        base_power=base_power,
+    )
+    tactical += survivability_adjustment
+    notes.extend(survivability_notes)
+
+    return (
+        ScoreBreakdown(
+            tactical=tactical,
+            positional=0.0,
+            strategic=0.0,
+            uncertainty=0.0,
+        ),
+        notes,
+    )
+
+
+def build_switch_score_breakdown(
+    switch_target: PokemonState,
+    state: BattleState,
+) -> Tuple[ScoreBreakdown, List[str]]:
+    switch_score, notes = score_switch(
+        switch_target=switch_target,
+        opposing_active=state.opponent_side.active,
+        entry_side_conditions=state.my_side.side_conditions,
+    )
+
+    return (
+        ScoreBreakdown(
+            tactical=0.0,
+            positional=switch_score,
+            strategic=0.0,
+            uncertainty=0.0,
+        ),
+        notes,
+    )
+
+
 def evaluate_move_actions(state: BattleState) -> List[EvaluatedAction]:
     results: List[EvaluatedAction] = []
 
@@ -268,31 +340,12 @@ def evaluate_move_actions(state: BattleState) -> List[EvaluatedAction]:
             defending_pokemon=defending_pokemon,
         )
 
-        base_power = move.power or 0
-        total_score = score_move(
-            min_pct=dmg["minPercent"],
-            max_pct=dmg["maxPercent"],
-            type_mult=dmg["typeMultiplier"],
-            category=move.category,
-            base_power=base_power,
-        )
-
-        turn_adjustment, turn_notes = turn_order_score_adjustment(
-            order_context=order_context,
-            min_pct=dmg["minPercent"],
-            max_pct=dmg["maxPercent"],
-            category=move.category,
-            base_power=base_power,
-        )
-        total_score += turn_adjustment
-
-        survivability_adjustment, survivability_notes = survivability_score_adjustment(
+        score_breakdown, breakdown_notes = build_move_score_breakdown(
+            move=move,
+            dmg=dmg,
             order_context=order_context,
             retaliation=retaliation,
-            category=move.category,
-            base_power=base_power,
         )
-        total_score += survivability_adjustment
 
         extra_notes = list(retaliation_notes)
         extra_notes.append(
@@ -304,14 +357,14 @@ def evaluate_move_actions(state: BattleState) -> List[EvaluatedAction]:
             move_name=move_name,
             move_type=move.type,
             move_category=move.category,
-            base_power=base_power,
+            base_power=move.power or 0,
             priority=int(getattr(move, "priority", 0) or 0),
         )
 
         results.append(
             EvaluatedAction(
                 action=action,
-                score=total_score,
+                score_breakdown=score_breakdown,
                 confidence=0.0,
                 notes=(
                     dmg["notes"]
@@ -319,8 +372,7 @@ def evaluate_move_actions(state: BattleState) -> List[EvaluatedAction]:
                     + field_notes
                     + turn_order_notes
                     + extra_notes
-                    + turn_notes
-                    + survivability_notes
+                    + breakdown_notes
                 ),
                 type_multiplier=dmg["typeMultiplier"],
                 min_damage=dmg["minDamage"],
@@ -338,10 +390,9 @@ def evaluate_switch_actions(state: BattleState) -> List[EvaluatedAction]:
 
     for switch_target in state.my_side.bench:
         species = switch_target.species or "Unknown switch target"
-        switch_score, notes = score_switch(
+        score_breakdown, notes = build_switch_score_breakdown(
             switch_target=switch_target,
-            opposing_active=state.opponent_side.active,
-            entry_side_conditions=state.my_side.side_conditions,
+            state=state,
         )
 
         action = SwitchAction(target_species=species)
@@ -349,7 +400,7 @@ def evaluate_switch_actions(state: BattleState) -> List[EvaluatedAction]:
         results.append(
             EvaluatedAction(
                 action=action,
-                score=switch_score,
+                score_breakdown=score_breakdown,
                 confidence=0.0,
                 notes=notes,
             )

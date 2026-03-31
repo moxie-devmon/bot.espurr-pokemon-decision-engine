@@ -27,9 +27,35 @@ Action = Union[MoveAction, SwitchAction]
 
 
 @dataclass
+class ScoreBreakdown:
+    tactical: float = 0.0
+    positional: float = 0.0
+    strategic: float = 0.0
+    uncertainty: float = 0.0
+
+    @property
+    def total(self) -> float:
+        return (
+            self.tactical
+            + self.positional
+            + self.strategic
+            + self.uncertainty
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "tactical": self.tactical,
+            "positional": self.positional,
+            "strategic": self.strategic,
+            "uncertainty": self.uncertainty,
+            "total": self.total,
+        }
+
+
+@dataclass
 class EvaluatedAction:
     action: Action
-    score: float
+    score_breakdown: ScoreBreakdown = field(default_factory=ScoreBreakdown)
     confidence: float = 0.0
     notes: list[str] = field(default_factory=list)
 
@@ -38,6 +64,10 @@ class EvaluatedAction:
     max_damage: Optional[float] = None
     min_damage_percent: Optional[float] = None
     max_damage_percent: Optional[float] = None
+
+    @property
+    def score(self) -> float:
+        return self.score_breakdown.total
 
     @property
     def action_type(self) -> ActionType:
@@ -63,6 +93,7 @@ class EvaluatedAction:
                 "minDamagePercent": self.min_damage_percent,
                 "maxDamagePercent": self.max_damage_percent,
                 "score": self.score,
+                "scoreBreakdown": self.score_breakdown.to_dict(),
                 "confidence": self.confidence,
                 "notes": self.notes,
             }
@@ -79,6 +110,7 @@ class EvaluatedAction:
             "minDamagePercent": None,
             "maxDamagePercent": None,
             "score": self.score,
+            "scoreBreakdown": self.score_breakdown.to_dict(),
             "confidence": self.confidence,
             "notes": self.notes,
         }

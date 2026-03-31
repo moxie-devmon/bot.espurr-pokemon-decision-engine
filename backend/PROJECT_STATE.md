@@ -6,7 +6,7 @@ If code changes are needed, always request the exact file before generating modi
 
 Espurr is a modular Pokémon battle decision engine designed to evaluate battle states and recommend optimal actions.
 
-The system is intentionally built with a clean layered architecture so the core decision engine can operate independently of any specific input source.
+The system is built with a layered architecture so the core decision engine operates independently of input sources.
 
 Future inputs may include:
 - manually constructed battle states
@@ -14,11 +14,32 @@ Future inputs may include:
 - Pokémon Showdown battle states
 - replay logs
 
-All inputs eventually convert into a unified internal representation:
+All inputs convert into:
 
 BattleState → Evaluation Engine → Ranked Actions
 
 The evaluation engine must remain input-agnostic.
+
+
+--------------------------------------------------
+
+# CURRENT DEVELOPMENT PHASE
+
+Espurr has completed its **core backend architecture refactor**.
+
+We are now in the:
+
+🚀 **ENGINE INTELLIGENCE PHASE**
+
+Focus has shifted from:
+- structuring code
+- building endpoints
+
+→ to:
+
+- improving decision quality
+- modeling real competitive reasoning
+- handling uncertainty properly
 
 
 --------------------------------------------------
@@ -31,61 +52,41 @@ Examples:
 - Gen 9 OU
 - Gen 8 OU
 - Gen 7 OU
-- etc.
 
-Each generation may contain different:
-- battle mechanics
-- move pools
-- abilities
-- items
-- competitive sets
-
-Therefore the engine will eventually support a **FormatContext**:
+The engine supports a **FormatContext**:
 
 FormatContext
   generation
   format_name
   ruleset
 
-This determines:
-- legal Pokémon / moves
-- mechanics rules
+This will determine:
+- mechanics
+- legal sets
 - meta priors
-- evaluation assumptions
+- inference assumptions
 
 
 --------------------------------------------------
 
 # Core Engine Principle — Partial Information Modeling
 
-Pokémon battles contain hidden information.
+Pokémon battles are partially observable.
 
-Players rarely know the opponent’s full set (EVs, item, ability, moves).
+Espurr evaluates **uncertain states** by maintaining:
 
-Espurr therefore evaluates **partially observable battle states**.
+→ a distribution over plausible opponent sets
 
-Instead of assuming a single opponent build, the engine maintains a **distribution of plausible sets**.
+Instead of:
+- assuming a single build
 
-Example:
+We model:
+- multiple candidate sets
+- weighted probabilities
+- confidence levels
 
-Opponent Pokémon: Garchomp
-
-Possible builds:
-- Choice Scarf attacker
-- Stealth Rock lead
-- Swords Dance sweeper
-
-Each candidate set includes:
-
-species
-moves
-item
-ability
-EV spread
-nature
-
-These sets will eventually be derived from metagame datasets such as:
-- Smogon usage statistics
+Future data sources:
+- Smogon usage stats
 - Smogon sample sets
 - MunchStats
 
@@ -94,53 +95,45 @@ These sets will eventually be derived from metagame datasets such as:
 
 # Confidence Categories
 
-Battle information is categorized into three levels.
-
 CONFIRMED
-Directly observable information.
-
-Examples:
 - revealed moves
-- HP percentage
-- status conditions
+- HP
+- status
 - hazards
-- stat boosts
-- revealed item or ability
+- boosts
 
 CONSTRAINED
-Information inferred from interactions.
-
-Examples:
-- speed inferred from turn order
-- item inferred from lack of Leftovers recovery
-- ability inferred from interactions
-- move pool narrowed after reveals
+- inferred speed
+- inferred item
+- inferred ability
+- narrowed move pool
 
 META-INFERRED
-Information filled using metagame priors.
+- EV spreads
+- items
+- abilities
+- move sets
 
-Examples:
-- common EV spreads
-- common items
-- common abilities
-- common move combinations
-
-*eventually allow pokepaste uploads for users to tell the engine upfront what team sets are
 
 --------------------------------------------------
 
 # Evaluation Strategy
 
-When information is incomplete, Espurr evaluates actions across **multiple plausible opponent states**.
+Espurr evaluates actions across multiple plausible opponent states.
 
-The engine calculates:
+Each action considers:
 
-- best-case outcome
-- worst-case outcome
-- expected outcome
-- confidence level
+- damage output
+- survivability
+- turn order
+- retaliation risk
+- switch value
 
-This prevents brittle recommendations that rely on a single assumed set.
+Future:
+
+- expected value across inferred distributions
+- worst-case vs best-case tradeoffs
+- confidence-aware recommendations
 
 
 --------------------------------------------------
@@ -149,36 +142,59 @@ This prevents brittle recommendations that rely on a single assumed set.
 
 Backend Framework: FastAPI
 
-Backend directory structure:
+Current structure:
 
 backend/app/
+
   main.py
+
+  routes/
+    battle_routes.py
+    data_routes.py
+    type_routes.py
 
   adapters/
     manual_input_adapter.py
 
   domain/
     battle_state.py
+    actions.py
+
+  engine/
+    damage_engine.py
+    evaluation_engine.py
+    speed_engine.py
+    field_engine.py
+    switch_engine.py
+    type_engine.py
+
+  inference/
+    models.py
+    set_inference.py
+    belief_updater.py
+
+  explain/
+    explanation_engine.py
+
+  providers/
+    pokemon_provider.py
+    move_provider.py
+    type_chart_provider.py
+    provider_utils.py
 
   schemas/
     battle_state.py
     damage_preview.py
     data_endpoints.py
-    suggest_move.py
     type_effectiveness.py
 
-  services/
-    battle_state_service.py
-    damage_preview.py
-    data_loader.py
-    name_normalize.py
-    set_inference.py (currently empty)
-    suggest_move.py
-    type_effectiveness.py
+  tests/
+    unit/
+    scenarios/
 
   data/
-    moves.json
     pokemon.json
+    moves.json
     typeChart.json
 
 
@@ -188,472 +204,274 @@ backend/app/
 
 INPUT LAYER
 
-Frontend UI gathers battle information such as:
-- attacker Pokémon
-- defender Pokémon
-- selected moves
-- available switches
+Frontend collects:
+- sides (mySide, opponentSide)
+- active Pokémon
+- bench
 - hazards
-- stat boosts
-- weather
-- terrain
+- moves
+- field conditions
 
-These are converted into structured request objects sent to the API.
+API LAYER
 
-
-API LAYER (FastAPI)
-
-Entry point:
-
-backend/app/main.py
-
-Endpoints currently implemented:
-
-GET
-/types
-/pokemon?search=
-/pokemon/{name}
-/moves?search=
-/moves/{name}
-
-POST
-/type-effectiveness
-/damage-preview
-/suggest-move
-/evaluate-position
-
+FastAPI routes call:
+- adapters → domain
+- engine → evaluation
+- explain → reasoning
 
 SCHEMA LAYER
 
-Located in:
-
-backend/app/schemas/
-
-These define request/response models for API endpoints.
-
-Important schemas include:
-
-BattleStateRequest
-EvaluatePositionResponse
-SideHazards
-FieldState
-
+Defines API contracts:
+- BattleStateRequest (side-native)
+- EvaluatePositionResponse
 
 DOMAIN LAYER
 
-Located in:
+Core internal representation:
 
-backend/app/domain/
-
-Defines internal engine objects independent of API schemas.
-
-Key models:
-
-ActivePokemon
-StatBoosts
-SideHazards
-FieldState
 BattleState
+  my_side
+  opponent_side
+  field
+  format_context
 
-BattleState represents a full snapshot of the battle state used by the evaluation engine.
+SideState
+  active
+  bench
+  side_conditions
 
+PokemonState
+  stats
+  boosts
+  status
+  revealed_moves
+
+ENGINE LAYER
+
+Pure logic modules:
+
+damage_engine
+speed_engine
+field_engine
+switch_engine
+evaluation_engine
+
+INFERENCE LAYER
+
+- candidate set modeling
+- belief updating
+- placeholder → future meta integration
+
+EXPLANATION LAYER
+
+- converts engine decisions into human-readable reasoning
 
 ADAPTER LAYER
 
-Located in:
+- converts schema → domain
+- isolates engine from API format
 
-backend/app/adapters/
+PROVIDER LAYER
 
-manual_input_adapter.py
-
-Purpose:
-
-Convert external API schemas into internal domain models.
-
-Flow:
-
-BattleStateRequest → BattleState
-
-This ensures the engine remains independent from frontend payload structures.
-
-
-ENGINE / SERVICE LAYER
-
-Located in:
-
-backend/app/services/
-
-Primary engine:
-
-battle_state_service.py
-
-Responsible for evaluating battle states and ranking actions.
-
-Action types currently supported:
-
-move
-switch
+- data access (pokemon, moves, types)
 
 
 --------------------------------------------------
 
 # ENGINE ENTRYPOINT MAP
 
-This section describes the exact execution flow of the Espurr engine.
+POST /evaluate-position
 
-When modifying logic, follow this pipeline.
+1. Request → BattleStateRequest
 
-Frontend
-→ POST /evaluate-position
+2. Adapter:
+   to_domain_battle_state(payload)
 
-FastAPI endpoint
+3. Engine:
+   evaluate_battle_state(state)
 
-backend/app/main.py
+4. Evaluation pipeline:
 
-calls
+Move actions:
+  estimate_damage
+  field modifiers
+  turn order
+  retaliation modeling
+  scoring
 
-battle_state_service.evaluate_position()
+Switch actions:
+  hazard impact
+  defensive typing
+  HP + speed context
+  scoring
 
+5. Inference:
+  infer_opposing_active_set(state)
 
-Evaluation Pipeline
+6. Explanation:
+  explanation_engine
 
-1. API receives BattleStateRequest
-
-2. Adapter converts schema → domain model
-
-manual_input_adapter.to_domain_battle_state(payload)
-
-Result:
-
-BattleState
-
-
-3. Engine evaluates possible actions
-
-battle_state_service.evaluate_position(state)
-
-
-4. Action generation
-
-Move actions
-
-_evaluate_move_actions(state)
-
-Switch actions
-
-_evaluate_switch_actions(state)
-
-
-5. Move evaluation pipeline
-
-estimate_damage()
-↓
-apply_weather_modifier()
-↓
-apply_terrain_modifier()
-↓
-determine_turn_order()
-↓
-estimate_proxy_retaliation()
-↓
-compute_move_score()
-
-
-6. Switch evaluation pipeline
-
-_score_switch()
-↓
-hazard_on_entry_context()
-↓
-entry_hazard_damage()
-↓
-post_entry_hp_estimate()
-↓
-defensive_type_matchup()
-↓
-compute_switch_score()
-
-
-7. Actions combined and ranked
-
-softmax(score) → confidence
-
-Output:
-
-EvaluatePositionResponse
+7. Output:
+  ranked actions + confidence
 
 
 --------------------------------------------------
 
 # Current Engine Capabilities
 
-The engine now evaluates **battle states**, not just moves.
+Battle modeling:
+- side-based state (active + bench)
+- hazards per side
+- weather + terrain
 
-Supported mechanics include:
-
-Damage modeling
-- Gen-style damage formula
-- damage ranges
-- STAB modifier
-- crit modifier
-- burn modifier
+Damage:
+- gen-style formula
+- STAB, crit, burn
 - type effectiveness
+- damage ranges
 
-Battle mechanics
-- stat boosts
-- speed comparison
-- priority moves
-- simple turn order modeling
-- weather modifiers
-- terrain modifiers
+Turn order:
+- speed
+- boosts
+- priority
 
-Survivability modeling
-- proxy retaliation estimate
-- penalty when attacker likely faints before moving
+Survivability:
+- proxy retaliation
+- KO risk penalties
 
-Action modeling
-- move actions
-- switch actions
+Switching:
+- hazard impact
+- defensive typing
+- HP + speed heuristics
 
-Switch evaluation considers:
-- defender STAB matchup
-- entry hazards
-- HP ratio
-- rough speed context
+Inference:
+- placeholder candidate sets
+- revealed moves preserved
 
-Hazards implemented
+Explanation:
+- structured reasoning layer
 
-Stealth Rock
-Spikes (1–3 layers)
-Sticky Web
-Toxic Spikes
-
-Simplifications currently used:
-- groundedness approximated using Flying type
-- no item / ability interactions yet
-
-
---------------------------------------------------
-
-# Damage Formula (Current Version)
-
-Base damage:
-
-(((2 * Level / 5 + 2) * Power * (Attack / Defense)) / 50) + 2
-
-Final damage:
-
-BaseDamage * STAB * TypeMultiplier * Crit * Burn * Random
-
-Modifiers implemented:
-
-STAB = 1.5
-Crit = 1.5
-Burn = 0.5 (physical moves)
-Random = 0.85 – 1.00
-
-Returned values:
-
-minDamage
-maxDamage
-minDamagePercent
-maxDamagePercent
-
-
---------------------------------------------------
-
-# Frontend Architecture
-
-Framework:
-Next.js + TypeScript
-
-API wrapper:
-
-frontend/src/app/lib/api.ts
-
-Contains:
-- typed request/response interfaces
-- http<T>() wrapper
-- API helper functions
-
-
-Components:
-
-TypeEffectivenessPanel.tsx
-DamagePreviewPanel.tsx
-SuggestMovePanel.tsx
-EvaluatePositionPanel.tsx
-AutocompleteInput.tsx
-
-
---------------------------------------------------
-
-# Current UI Features
-
-EvaluatePositionPanel
-
-Manual battle state evaluator.
-
-User controls include:
-
-- attacker Pokémon
-- defender Pokémon
-- stat inputs
-- stat boosts
-- hazards
-- weather
-- terrain
-- moves
-- switch candidates
-
-Outputs:
-
-- ranked actions
-- confidence scores
-- explanation
-- reasoning notes
-
-
---------------------------------------------------
-
-# CRITICAL FILES
-
-Core engine files that should always be referenced before making logic changes:
-
-backend/app/services/battle_state_service.py
-backend/app/services/damage_preview.py
-backend/app/adapters/manual_input_adapter.py
-backend/app/domain/battle_state.py
-backend/app/schemas/battle_state.py
-frontend/src/app/components/EvaluatePositionPanel.tsx
-frontend/src/app/lib/api.ts
+Testing:
+- unit tests (engines)
+- scenario tests (decision behavior)
 
 
 --------------------------------------------------
 
 # Known Limitations
 
-The engine currently models **mostly single-turn evaluation**.
-
-Not implemented yet:
-
-- EV / IV / nature modeling
-- abilities
-- held items
-- groundedness interactions
-- hazard removal (Rapid Spin / Defog)
-- opponent coverage prediction
-- switching prediction
-- multi-turn planning
-- battle state memory
-- opponent set inference
-- Showdown battle state integration
-- win-condition evaluation
+- evaluation is mostly single-turn
+- inference is placeholder
+- no items or abilities yet
+- no EV / nature modeling
+- no coverage prediction
+- no switching prediction
+- no multi-turn planning
+- no real opponent modeling yet
 
 
 --------------------------------------------------
 
-# Planned Future Engine Components
-
-BattleState Model
-
-Now implemented as the core internal battle representation.
-
-
-Set Inference Engine
+# Scenario Testing Harness
 
 Located in:
 
-services/set_inference.py
+backend/app/tests/scenarios/
 
-Purpose:
+Uses serialized battle states.
 
-Infer plausible opponent sets using:
+Validates:
+- decision correctness
+- regression prevention
 
-- species
-- format
-- revealed moves
-- observed interactions
-
-
-Belief State Updater
-
-Updates opponent probability distributions during battle.
-
-
-Meta Provider
-
-Provides metagame data such as:
-
-- common sets
-- usage frequencies
-- format legality
-
-
-Explanation Engine
-
-Separates reasoning generation from evaluation logic.
-
-
-Scenario Testing Harness
-
-Collection of battle scenarios used for regression testing.
+Examples:
+- type advantage (Electric vs Gyarados)
+- hazard-aware switching
+- priority vs speed
+- status vs damage
+- inference visibility
 
 
 --------------------------------------------------
 
-# Next Major Development Steps
+# CRITICAL FILES
 
-1. Improve switch evaluation
+Always check before modifying logic:
 
-Add:
+engine/evaluation_engine.py
+engine/damage_engine.py
+engine/switch_engine.py
+engine/speed_engine.py
+engine/field_engine.py
 
-- retaliation estimates for switch targets
-- coverage move risk
-- hazard removal considerations
+domain/battle_state.py
+adapters/manual_input_adapter.py
+
+inference/set_inference.py
+explain/explanation_engine.py
+
+
+--------------------------------------------------
+
+# Next Major Development Steps (ENGINE INTELLIGENCE)
+
+1. Fix decision gaps (HIGH PRIORITY)
+
+Example:
+- priority vs damage (KO-before-being-hit logic)
+- survivability weighting
+
+2. Improve retaliation modeling
+
+- use inferred sets instead of proxy STAB
+- incorporate move coverage risk
+
+3. Integrate inference into evaluation
+
+- weight outcomes across candidate sets
+- replace single proxy retaliation
+
+4. Add item and ability awareness
+
+Start with high-impact:
+- Choice items
+- Leftovers
+- Life Orb
+- Focus Sash
+- Intimidate
+
+5. Improve switch evaluation
+
+- retaliation vs switch-in
+- hazard removal value
 - pivoting value
 
+6. Add groundedness and field correctness
 
-2. Implement opponent set inference
+- Flying / Levitate
+- terrain interactions
 
-Use metagame priors to build plausible opponent distributions.
+7. Introduce shallow lookahead
 
-
-3. Introduce Pokémon value modeling
-
-Support concepts such as:
-
-- win conditions
-- sacrifice value
-- team roles
-
-
-4. Introduce limited lookahead
-
-Add shallow search:
-
-1–2 turn evaluation
-heuristic pruning
-
-
-5. Showdown state integration
-
-Build adapter to ingest:
-
-- Showdown battle logs
-- replay positions
-- live battle states
+- 1-turn + opponent response
+- basic minimax heuristics
 
 
 --------------------------------------------------
 
 # Development Philosophy
 
-Current phase priorities:
+Architecture is now stable.
 
-- clean architecture
-- modular services
-- explainable outputs
-- maintainable backend structure
+Focus is now on:
 
-Full competitive accuracy will be layered in incrementally after the architecture stabilizes.
+- decision quality
+- competitive realism
+- explainability
+- incremental intelligence
+
+Build vertically through scenario-driven improvements.
+
+Every improvement should:
+- fix a failing scenario OR
+- add a new scenario
