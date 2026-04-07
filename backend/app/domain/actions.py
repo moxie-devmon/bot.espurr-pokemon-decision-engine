@@ -5,6 +5,7 @@ from typing import Literal, Optional, Union
 
 
 ActionType = Literal["move", "switch"]
+DominantReason = Literal["tactical", "positional", "strategic", "uncertainty"]
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,14 @@ class EvaluatedAction:
     min_damage_percent: Optional[float] = None
     max_damage_percent: Optional[float] = None
 
+    expected_score: Optional[float] = None
+    worst_score: Optional[float] = None
+    best_score: Optional[float] = None
+    stability: Optional[float] = None
+
+    top_world_label: Optional[str] = None
+    top_world_weight: Optional[float] = None
+
     @property
     def score(self) -> float:
         return self.score_breakdown.total
@@ -79,38 +88,81 @@ class EvaluatedAction:
             return self.action.move_name
         return self.action.target_species
 
-    def to_dict(self) -> dict:
-        if isinstance(self.action, MoveAction):
-            return {
-                "actionType": self.action.action_type,
-                "name": self.action.move_name,
-                "moveType": self.action.move_type,
-                "moveCategory": self.action.move_category,
-                "basePower": self.action.base_power,
-                "typeMultiplier": self.type_multiplier,
-                "minDamage": self.min_damage,
-                "maxDamage": self.max_damage,
-                "minDamagePercent": self.min_damage_percent,
-                "maxDamagePercent": self.max_damage_percent,
-                "score": self.score,
-                "scoreBreakdown": self.score_breakdown.to_dict(),
-                "confidence": self.confidence,
-                "notes": self.notes,
-            }
+    @property
+    def immediate_score(self) -> float:
+        return self.score_breakdown.tactical + self.score_breakdown.positional
 
-        return {
+    @property
+    def continuation_score(self) -> float:
+        return self.score_breakdown.strategic
+
+    @property
+    def uncertainty_penalty(self) -> float:
+        return self.score_breakdown.uncertainty
+
+    @property
+    def dominant_reason(self) -> DominantReason:
+        bucket_pairs: list[tuple[DominantReason, float]] = [
+            ("tactical", self.score_breakdown.tactical),
+            ("positional", self.score_breakdown.positional),
+            ("strategic", self.score_breakdown.strategic),
+            ("uncertainty", self.score_breakdown.uncertainty),
+        ]
+        dominant_bucket, _ = max(bucket_pairs, key=lambda item: abs(item[1]))
+        return dominant_bucket
+
+    @property
+    def continuation_driven(self) -> bool:
+        strategic = abs(self.score_breakdown.strategic)
+        immediate = abs(self.immediate_score)
+        return strategic >= 3.0 or strategic > immediate
+
+    def to_dict(self) -> dict:
+        base = {
             "actionType": self.action.action_type,
-            "name": self.action.target_species,
-            "moveType": None,
-            "moveCategory": None,
-            "basePower": None,
-            "typeMultiplier": None,
-            "minDamage": None,
-            "maxDamage": None,
-            "minDamagePercent": None,
-            "maxDamagePercent": None,
+            "name": self.name,
             "score": self.score,
             "scoreBreakdown": self.score_breakdown.to_dict(),
             "confidence": self.confidence,
             "notes": self.notes,
+            "expectedScore": self.expected_score,
+            "worstScore": self.worst_score,
+            "bestScore": self.best_score,
+            "stability": self.stability,
+            "topWorldLabel": self.top_world_label,
+            "topWorldWeight": self.top_world_weight,
+            "immediateScore": self.immediate_score,
+            "continuationScore": self.continuation_score,
+            "uncertaintyPenalty": self.uncertainty_penalty,
+            "dominantReason": self.dominant_reason,
+            "continuationDriven": self.continuation_driven,
         }
+
+        if isinstance(self.action, MoveAction):
+            base.update(
+                {
+                    "moveType": self.action.move_type,
+                    "moveCategory": self.action.move_category,
+                    "basePower": self.action.base_power,
+                    "typeMultiplier": self.type_multiplier,
+                    "minDamage": self.min_damage,
+                    "maxDamage": self.max_damage,
+                    "minDamagePercent": self.min_damage_percent,
+                    "maxDamagePercent": self.max_damage_percent,
+                }
+            )
+            return base
+
+        base.update(
+            {
+                "moveType": None,
+                "moveCategory": None,
+                "basePower": None,
+                "typeMultiplier": None,
+                "minDamage": None,
+                "maxDamage": None,
+                "minDamagePercent": None,
+                "maxDamagePercent": None,
+            }
+        )
+        return base

@@ -1,28 +1,27 @@
 from __future__ import annotations
 
 import math
-from dataclasses import replace
-from types import SimpleNamespace
 from typing import Dict, List, Tuple
 
+from app.engine.lookahead_engine import estimate_lookahead_bonus
 from app.domain.actions import EvaluatedAction, MoveAction, ScoreBreakdown, SwitchAction
-from app.domain.battle_state import BattleState, PokemonState
+from app.domain.battle_state import BattleState
+from app.engine.projection_engine import project_action_against_response
+from app.engine.response_engine import generate_opponent_responses
+from app.engine.switch_engine import score_switch
 from app.explain.explanation_engine import (
     build_assumptions,
     build_inference_summary,
     build_reasoning_summary,
     build_recommendation_explanation,
 )
-from app.inference.set_inference import infer_opposing_active_set
-from app.engine.damage_engine import estimate_damage
-from app.engine.field_engine import apply_field_modifiers
-from app.engine.speed_engine import (
-    stage_multiplier,
-    turn_order_context,
-    turn_order_score_adjustment,
+from app.inference.models import (
+    ActionWorldEvaluation,
+    AggregatedActionValue,
+    InferenceResult,
+    OpponentWorld,
 )
-from app.engine.switch_engine import score_switch
-from app.engine.type_engine import combined_multiplier
+from app.inference.set_inference import infer_opposing_active_set
 
 
 def softmax(values: Dict[str, float], temperature: float = 8.0) -> Dict[str, float]:
@@ -35,378 +34,370 @@ def softmax(values: Dict[str, float], temperature: float = 8.0) -> Dict[str, flo
     return {k: exps[k] / total for k in values}
 
 
-def score_move_tactical(
-    min_pct: float,
-    max_pct: float,
-    type_mult: float,
-    category: str,
-    base_power: int,
-) -> float:
-    if category == "status" or base_power <= 0:
-        return -5.0
+def build_opponent_worlds(
+    state: BattleState,
+    inference_result: InferenceResult,
+) -> List[OpponentWorld]:
+    if not inference_result.candidates:
+        return []
 
-    avg_pct = (min_pct + max_pct) / 2.0
-    score = avg_pct
+    normalized = inference_result.normalized_weights()
+    revealed = list(state.opponent_side.active.revealed_moves)
 
-    if type_mult >= 2.0:
-        score += 5.0
-    elif 0.0 < type_mult < 1.0:
-        score -= 3.0
-    elif type_mult == 0.0:
-        score -= 100.0
+    worlds: List[OpponentWorld] = []
+    for candidate in inference_result.candidates:
+        assumed_moves = []
+        for move_name in candidate.moves:
+            if move_name not in assumed_moves:
+                assumed_moves.append(move_name)
 
-    if min_pct >= 100.0:
-        score += 15.0
-    elif max_pct >= 100.0:
-        score += 8.0
+        notes = [
+            f"Opponent world derived from candidate '{candidate.label}'.",
+            f"Candidate source: {candidate.source}.",
+        ]
+        if candidate.item:
+            notes.append(f"Assumed item: {candidate.item}.")
+        if candidate.ability:
+            notes.append(f"Assumed ability: {candidate.ability}.")
+        if candidate.tera_type:
+            notes.append(f"Assumed Tera type: {candidate.tera_type}.")
 
-    return score
+        worlds.append(
+            OpponentWorld(
+                species=candidate.species,
+                candidate=candidate,
+                weight=normalized.get(candidate.label, 0.0),
+                known_moves=revealed,
+                assumed_moves=assumed_moves,
+                assumed_item=candidate.item,
+                assumed_ability=candidate.ability,
+                assumed_tera_type=candidate.tera_type,
+                notes=notes,
+            )
+        )
 
-
-def apply_relevant_boosts(
-    attacking_pokemon: PokemonState,
-    defending_pokemon: PokemonState,
-    move_category: str,
-) -> Tuple[PokemonState, PokemonState, List[str]]:
-    notes: List[str] = []
-
-    if move_category == "physical":
-        atk_mult = stage_multiplier(attacking_pokemon.boosts.atk)
-        def_mult = stage_multiplier(defending_pokemon.boosts.def_)
-
-        boosted_attacker = replace(attacking_pokemon, atk=attacking_pokemon.atk * atk_mult)
-        boosted_defender = replace(defending_pokemon, def_=defending_pokemon.def_ * def_mult)
-
-        if attacking_pokemon.boosts.atk != 0:
-            notes.append(f"Attacking Pokémon Attack boost stage applied: {attacking_pokemon.boosts.atk}.")
-        if defending_pokemon.boosts.def_ != 0:
-            notes.append(f"Defending Pokémon Defense boost stage applied: {defending_pokemon.boosts.def_}.")
-
-        return boosted_attacker, boosted_defender, notes
-
-    if move_category == "special":
-        spa_mult = stage_multiplier(attacking_pokemon.boosts.spa)
-        spd_mult = stage_multiplier(defending_pokemon.boosts.spd)
-
-        boosted_attacker = replace(attacking_pokemon, spa=attacking_pokemon.spa * spa_mult)
-        boosted_defender = replace(defending_pokemon, spd=defending_pokemon.spd * spd_mult)
-
-        if attacking_pokemon.boosts.spa != 0:
-            notes.append(f"Attacking Pokémon Special Attack boost stage applied: {attacking_pokemon.boosts.spa}.")
-        if defending_pokemon.boosts.spd != 0:
-            notes.append(f"Defending Pokémon Special Defense boost stage applied: {defending_pokemon.boosts.spd}.")
-
-        return boosted_attacker, boosted_defender, notes
-
-    return attacking_pokemon, defending_pokemon, notes
+    return worlds
 
 
-def best_stab_type_into_target(
-    attacking_pokemon: PokemonState,
-    defending_pokemon: PokemonState,
-) -> Tuple[str | None, float]:
-    best_type = None
-    best_mult = -1.0
-
-    for stab_type in attacking_pokemon.types:
-        mult, _ = combined_multiplier(stab_type, defending_pokemon.types)
-        if mult > best_mult:
-            best_mult = mult
-            best_type = stab_type
-
-    if best_type is None:
-        return None, 1.0
-
-    return best_type, best_mult
-
-
-def proxy_retaliation_move(defending_pokemon: PokemonState, attacking_pokemon: PokemonState):
-    best_stab_type, best_mult = best_stab_type_into_target(defending_pokemon, attacking_pokemon)
-
-    if best_stab_type is None:
-        best_stab_type = defending_pokemon.types[0] if defending_pokemon.types else "Normal"
-        best_mult = 1.0
-
-    defender_prefers_physical = float(defending_pokemon.atk or 100) >= float(defending_pokemon.spa or 100)
-    category = "physical" if defender_prefers_physical else "special"
-    power = 100 if best_mult >= 2.0 else 80
-
-    return SimpleNamespace(
-        name=f"Proxy {best_stab_type} STAB",
-        type=best_stab_type,
-        category=category,
-        power=power,
-        priority=0,
-        crit=False,
-        level=defending_pokemon.level,
-    )
-
-
-def retaliation_context(
-    attacking_pokemon: PokemonState,
-    defending_pokemon: PokemonState,
-) -> Tuple[dict, List[str]]:
-    notes: List[str] = []
-
-    proxy_move = proxy_retaliation_move(defending_pokemon, attacking_pokemon)
-    notes.append(
-        f"Proxy retaliation assumes opposing active Pokémon can use a plausible {proxy_move.type}-type STAB attack "
-        f"({proxy_move.category}, {proxy_move.power} BP)."
-    )
-
-    retaliation = estimate_damage(
-        attacker=defending_pokemon,
-        defender=attacking_pokemon,
-        move=proxy_move,
-    )
-
-    attacker_current_hp = float(
-        attacking_pokemon.current_hp if attacking_pokemon.current_hp is not None else attacking_pokemon.hp or 100
-    )
-    attacker_max_hp = max(1.0, float(attacking_pokemon.hp or 100))
-
-    retaliation_min_pct_current = max(
-        0.0,
-        min((float(retaliation["minDamage"]) / max(1.0, attacker_current_hp)) * 100.0, 100.0),
-    )
-    retaliation_max_pct_current = max(
-        0.0,
-        min((float(retaliation["maxDamage"]) / max(1.0, attacker_current_hp)) * 100.0, 100.0),
-    )
-
-    context = {
-        "moveType": proxy_move.type,
-        "moveCategory": proxy_move.category,
-        "power": proxy_move.power,
-        "typeMultiplier": retaliation["typeMultiplier"],
-        "minDamage": retaliation["minDamage"],
-        "maxDamage": retaliation["maxDamage"],
-        "minPercentMaxHp": retaliation["minPercent"],
-        "maxPercentMaxHp": retaliation["maxPercent"],
-        "minPercentCurrentHp": retaliation_min_pct_current,
-        "maxPercentCurrentHp": retaliation_max_pct_current,
-        "attackerCurrentHp": attacker_current_hp,
-        "attackerMaxHp": attacker_max_hp,
-    }
-
-    return context, notes
-
-
-def survivability_score_adjustment(
-    order_context: str,
-    retaliation: dict,
-    category: str,
-    base_power: int,
-) -> Tuple[float, List[str]]:
-    notes: List[str] = []
-
-    if category == "status" or base_power <= 0:
-        return 0.0, notes
-
-    adjustment = 0.0
-    max_pct_current = float(retaliation["maxPercentCurrentHp"])
-    min_pct_current = float(retaliation["minPercentCurrentHp"])
-
-    if order_context == "attacker_second":
-        if min_pct_current >= 100.0:
-            adjustment -= 45.0
-            notes.append("Heavy penalty: attacker is likely KOed by proxy retaliation before moving.")
-        elif max_pct_current >= 100.0:
-            adjustment -= 30.0
-            notes.append("Strong penalty: attacker may be KOed by proxy retaliation before moving.")
-        elif max_pct_current >= 75.0:
-            adjustment -= 16.0
-            notes.append("Penalty: attacker risks taking very heavy proxy retaliation before moving.")
-        elif max_pct_current >= 50.0:
-            adjustment -= 8.0
-            notes.append("Penalty: attacker risks substantial proxy retaliation before moving.")
-
-    elif order_context == "speed_tie":
-        if max_pct_current >= 100.0:
-            adjustment -= 12.0
-            notes.append("Penalty: speed tie plus proxy retaliation means attacker may be KOed before acting.")
-        elif max_pct_current >= 75.0:
-            adjustment -= 6.0
-            notes.append("Penalty: speed tie makes heavy proxy retaliation risky.")
-
-    return adjustment, notes
-
-
-def build_move_score_breakdown(
-    move,
-    dmg: dict,
-    order_context: str,
-    retaliation: dict,
+def score_projection_summary(
+    projection,
+    my_action,
+    state: BattleState,
+    continuation_bonus: float = 0.0,
 ) -> Tuple[ScoreBreakdown, List[str]]:
-    notes: List[str] = []
-    base_power = move.power or 0
+    notes = list(projection.notes)
 
-    tactical = score_move_tactical(
-        min_pct=dmg["minPercent"],
-        max_pct=dmg["maxPercent"],
-        type_mult=dmg["typeMultiplier"],
-        category=move.category,
-        base_power=base_power,
-    )
+    tactical = 0.0
+    positional = 0.0
+    strategic = 0.0
+    uncertainty = 0.0
 
-    turn_adjustment, turn_notes = turn_order_score_adjustment(
-        order_context=order_context,
-        min_pct=dmg["minPercent"],
-        max_pct=dmg["maxPercent"],
-        category=move.category,
-        base_power=base_power,
-    )
-    tactical += turn_adjustment
-    notes.extend(turn_notes)
+    opp_damage_pct = projection.opp_damage_taken_pct_current
+    my_damage_pct = projection.my_damage_taken_pct_current
 
-    survivability_adjustment, survivability_notes = survivability_score_adjustment(
-        order_context=order_context,
-        retaliation=retaliation,
-        category=move.category,
-        base_power=base_power,
-    )
-    tactical += survivability_adjustment
-    notes.extend(survivability_notes)
+    tactical += opp_damage_pct * 0.9
+    tactical -= my_damage_pct * 0.8
+
+    if projection.opp_fainted:
+        tactical += 35.0
+        notes.append("Major boost: projected line KOs the opposing active Pokémon.")
+    if projection.my_fainted:
+        tactical -= 40.0
+        notes.append("Heavy penalty: projected line loses the current active Pokémon.")
+
+    if isinstance(my_action, MoveAction):
+        if projection.order_context == "attacker_first" and not projection.my_fainted:
+            tactical += 3.0
+            notes.append("Small boost: projected line acts first.")
+        elif projection.order_context == "attacker_second":
+            tactical -= 3.0
+            notes.append("Penalty: projected line absorbs pressure before acting.")
+        elif projection.order_context == "speed_tie":
+            uncertainty -= 2.0
+            notes.append("Uncertainty penalty: speed tie / uncertain turn order.")
+
+    if isinstance(my_action, SwitchAction):
+        switch_target = next(
+            (pokemon for pokemon in state.my_side.bench if pokemon.species == my_action.target_species),
+            None,
+        )
+        if switch_target is not None:
+            base_switch_score, switch_notes = score_switch(
+                switch_target=switch_target,
+                opposing_active=state.opponent_side.active,
+                entry_side_conditions=state.my_side.side_conditions,
+            )
+            positional += base_switch_score
+            notes.extend(switch_notes)
+
+        if projection.my_damage_taken_pct_current >= 75.0:
+            positional -= 10.0
+            notes.append("Penalty: switch target is projected to take heavy immediate punishment.")
+        elif projection.my_damage_taken_pct_current <= 25.0:
+            positional += 4.0
+            notes.append("Boost: switch target is projected to enter relatively safely.")
+
+    hp_swing = projection.opp_damage_taken - projection.my_damage_taken
+    positional += hp_swing * 0.1
+
+    strategic += continuation_bonus
+    if continuation_bonus != 0.0:
+        notes.append(f"Strategic bucket includes shallow-lookahead bonus: {continuation_bonus:.1f}.")
 
     return (
         ScoreBreakdown(
             tactical=tactical,
+            positional=positional,
+            strategic=strategic,
+            uncertainty=uncertainty,
+        ),
+        notes,
+    )
+
+
+def aggregate_response_scores(
+    response_scores: List[tuple[float, float, dict]],
+) -> Tuple[float, float, float]:
+    if not response_scores:
+        return 0.0, 0.0, 0.0
+
+    expected = sum(score * weight for score, weight, _ in response_scores)
+    worst = min(score for score, _, _ in response_scores)
+    best = max(score for score, _, _ in response_scores)
+    return expected, worst, best
+
+
+def evaluate_action_in_world(
+    state: BattleState,
+    my_action,
+    world: OpponentWorld,
+    all_worlds: List[OpponentWorld],
+    response_limit: int = 2,
+    continuation_discount: float = 0.35,
+) -> ActionWorldEvaluation:
+    responses = generate_opponent_responses(state=state, world=world, my_action=my_action)
+
+    response_scores: list[tuple[float, float, dict]] = []
+    notes: list[str] = list(world.notes)
+    notes.append(
+        f"Evaluating against opponent world '{world.candidate.label}' (weight {world.weight:.2f})."
+    )
+
+    lookahead_bonus, lookahead_notes = estimate_lookahead_bonus(
+        state=state,
+        my_action=my_action,
+        world=world,
+        all_worlds=all_worlds,
+        response_limit=response_limit,
+        continuation_discount=continuation_discount,
+    )
+    notes.extend(lookahead_notes[:3])
+
+    for response in responses:
+        projection = project_action_against_response(
+            state=state,
+            my_action=my_action,
+            response=response,
+            world=world,
+        )
+        score_breakdown, projection_notes = score_projection_summary(
+            projection=projection,
+            my_action=my_action,
+            state=state,
+            continuation_bonus=lookahead_bonus,
+        )
+        response_total = score_breakdown.total
+
+        response_dict = {
+            "responseLabel": response.label,
+            "responseWeight": response.weight,
+            "score": response_total,
+            "scoreBreakdown": score_breakdown.to_dict(),
+            "notes": projection_notes[:6],
+        }
+        response_scores.append((response_total, response.weight, response_dict))
+
+    expected, worst, best = aggregate_response_scores(response_scores)
+    response_breakdown = [payload for _, _, payload in response_scores]
+
+    notes.append(
+        f"World aggregation -> expected {expected:.1f}, worst {worst:.1f}, best {best:.1f}."
+    )
+
+    return ActionWorldEvaluation(
+        world=world,
+        expected_score=expected,
+        worst_score=worst,
+        best_score=best,
+        response_breakdown=response_breakdown,
+        notes=notes,
+    )
+
+def aggregate_world_evaluations(
+    world_evaluations: List[ActionWorldEvaluation],
+) -> AggregatedActionValue:
+    if not world_evaluations:
+        return AggregatedActionValue(
+            expected_score=0.0,
+            worst_score=0.0,
+            best_score=0.0,
+            stability=0.0,
+            notes=["No opponent worlds were available for aggregation."],
+        )
+
+    expected = sum(world_eval.expected_score * world_eval.world.weight for world_eval in world_evaluations)
+    worst = min(world_eval.worst_score for world_eval in world_evaluations)
+    best = max(world_eval.best_score for world_eval in world_evaluations)
+
+    # Stability = how tight the band is; smaller spread => higher stability.
+    spread = max(0.0, best - worst)
+    stability = max(0.0, 1.0 - min(spread / 100.0, 1.0))
+
+    notes: list[str] = []
+    for world_eval in world_evaluations[:3]:
+        notes.extend(world_eval.notes[:2])
+
+    notes.append(
+        f"Cross-world aggregation -> expected {expected:.1f}, worst {worst:.1f}, best {best:.1f}, stability {stability:.2f}."
+    )
+
+    return AggregatedActionValue(
+        expected_score=expected,
+        worst_score=worst,
+        best_score=best,
+        stability=stability,
+        notes=notes,
+    )
+
+def build_move_evaluated_action(
+    move,
+    aggregated: AggregatedActionValue,
+    top_world_label: str | None = None,
+    top_world_weight: float | None = None,
+) -> EvaluatedAction:
+    action = MoveAction(
+        move_name=(move.name or "Unknown move").strip(),
+        move_type=move.type,
+        move_category=move.category,
+        base_power=move.power or 0,
+        priority=int(getattr(move, "priority", 0) or 0),
+    )
+
+    notes = list(aggregated.notes)
+
+    return EvaluatedAction(
+        action=action,
+        score_breakdown=ScoreBreakdown(
+            tactical=aggregated.expected_score,
             positional=0.0,
             strategic=0.0,
-            uncertainty=0.0,
+            uncertainty=-(1.0 - aggregated.stability) * 5.0,
         ),
-        notes,
+        confidence=0.0,
+        notes=notes,
+        type_multiplier=None,
+        min_damage=None,
+        max_damage=None,
+        min_damage_percent=None,
+        max_damage_percent=None,
+        expected_score=aggregated.expected_score,
+        worst_score=aggregated.worst_score,
+        best_score=aggregated.best_score,
+        stability=aggregated.stability,
+        top_world_label=top_world_label,
+        top_world_weight=top_world_weight,
     )
 
 
-def build_switch_score_breakdown(
-    switch_target: PokemonState,
+def evaluate_move_actions(
     state: BattleState,
-) -> Tuple[ScoreBreakdown, List[str]]:
-    switch_score, notes = score_switch(
-        switch_target=switch_target,
-        opposing_active=state.opponent_side.active,
-        entry_side_conditions=state.my_side.side_conditions,
-    )
-
-    return (
-        ScoreBreakdown(
-            tactical=0.0,
-            positional=switch_score,
-            strategic=0.0,
-            uncertainty=0.0,
-        ),
-        notes,
-    )
-
-
-def evaluate_move_actions(state: BattleState) -> List[EvaluatedAction]:
+    worlds: List[OpponentWorld],
+) -> List[EvaluatedAction]:
     results: List[EvaluatedAction] = []
 
-    attacking_pokemon = state.my_side.active
-    defending_pokemon = state.opponent_side.active
-
-    for idx, move in enumerate(state.moves):
-        move_name = (move.name or f"Move {idx+1}").strip()
-
-        boosted_attacker, boosted_defender, boost_notes = apply_relevant_boosts(
-            attacking_pokemon,
-            defending_pokemon,
-            move.category,
-        )
-
-        dmg = estimate_damage(
-            attacker=boosted_attacker,
-            defender=boosted_defender,
-            move=move,
-        )
-
-        defender_hp = max(1.0, float(boosted_defender.hp or 100))
-        dmg, field_notes = apply_field_modifiers(
-            dmg=dmg,
-            move=move,
-            field=state.field,
-            defender_hp=defender_hp,
-        )
-
-        order_context, turn_order_notes = turn_order_context(
-            attacking_pokemon=attacking_pokemon,
-            defending_pokemon=defending_pokemon,
-            move=move,
-        )
-
-        retaliation, retaliation_notes = retaliation_context(
-            attacking_pokemon=attacking_pokemon,
-            defending_pokemon=defending_pokemon,
-        )
-
-        score_breakdown, breakdown_notes = build_move_score_breakdown(
-            move=move,
-            dmg=dmg,
-            order_context=order_context,
-            retaliation=retaliation,
-        )
-
-        extra_notes = list(retaliation_notes)
-        extra_notes.append(
-            f"Proxy retaliation estimate vs attacker current HP: "
-            f"{retaliation['minPercentCurrentHp']:.1f}–{retaliation['maxPercentCurrentHp']:.1f}%."
-        )
-
-        action = MoveAction(
-            move_name=move_name,
+    for move in state.moves:
+        my_action = MoveAction(
+            move_name=(move.name or "Unknown move").strip(),
             move_type=move.type,
             move_category=move.category,
             base_power=move.power or 0,
             priority=int(getattr(move, "priority", 0) or 0),
         )
 
+        world_evaluations = [
+            evaluate_action_in_world(state=state, my_action=my_action, world=world, all_worlds=worlds,)
+            for world in worlds
+        ]
+        aggregated = aggregate_world_evaluations(world_evaluations)
+        top_world_label, top_world_weight = top_influential_world(world_evaluations)
+
         results.append(
-            EvaluatedAction(
-                action=action,
-                score_breakdown=score_breakdown,
-                confidence=0.0,
-                notes=(
-                    dmg["notes"]
-                    + boost_notes
-                    + field_notes
-                    + turn_order_notes
-                    + extra_notes
-                    + breakdown_notes
-                ),
-                type_multiplier=dmg["typeMultiplier"],
-                min_damage=dmg["minDamage"],
-                max_damage=dmg["maxDamage"],
-                min_damage_percent=dmg["minPercent"],
-                max_damage_percent=dmg["maxPercent"],
+            build_move_evaluated_action(
+                move=move,
+                aggregated=aggregated,
+                top_world_label=top_world_label,
+                top_world_weight=top_world_weight,
             )
         )
 
     return results
 
-
-def evaluate_switch_actions(state: BattleState) -> List[EvaluatedAction]:
+def evaluate_switch_actions(
+    state: BattleState,
+    worlds: List[OpponentWorld],
+) -> List[EvaluatedAction]:
     results: List[EvaluatedAction] = []
 
     for switch_target in state.my_side.bench:
         species = switch_target.species or "Unknown switch target"
-        score_breakdown, notes = build_switch_score_breakdown(
-            switch_target=switch_target,
-            state=state,
-        )
-
         action = SwitchAction(target_species=species)
 
+        world_evaluations = [
+            evaluate_action_in_world(state=state, my_action=action, world=world, all_worlds=worlds,)
+            for world in worlds
+        ]
+        aggregated = aggregate_world_evaluations(world_evaluations)
+        top_world_label, top_world_weight = top_influential_world(world_evaluations)
+
         results.append(
-            EvaluatedAction(
-                action=action,
-                score_breakdown=score_breakdown,
-                confidence=0.0,
-                notes=notes,
+            build_switch_evaluated_action(
+                target_species=species,
+                aggregated=aggregated,
+                top_world_label=top_world_label,
+                top_world_weight=top_world_weight,
             )
         )
 
     return results
+
+
+def build_switch_evaluated_action(
+    target_species: str,
+    aggregated: AggregatedActionValue,
+    top_world_label: str | None = None,
+    top_world_weight: float | None = None,
+) -> EvaluatedAction:
+    action = SwitchAction(target_species=target_species)
+
+    notes = list(aggregated.notes)
+
+    return EvaluatedAction(
+        action=action,
+        score_breakdown=ScoreBreakdown(
+            tactical=0.0,
+            positional=aggregated.expected_score,
+            strategic=0.0,
+            uncertainty=-(1.0 - aggregated.stability) * 5.0,
+        ),
+        confidence=0.0,
+        notes=notes,
+        expected_score=aggregated.expected_score,
+        worst_score=aggregated.worst_score,
+        best_score=aggregated.best_score,
+        stability=aggregated.stability,
+        top_world_label=top_world_label,
+        top_world_weight=top_world_weight,
+    )
 
 
 def evaluate_battle_state(
@@ -419,8 +410,21 @@ def evaluate_battle_state(
     inference_result = infer_opposing_active_set(state)
     assumptions_used = build_assumptions(state, inference=inference_result)
 
-    evaluated_actions.extend(evaluate_move_actions(state))
-    evaluated_actions.extend(evaluate_switch_actions(state))
+    worlds = build_opponent_worlds(state=state, inference_result=inference_result)
+    if not worlds:
+        assumptions_used.append("No opponent worlds were built; evaluator is falling back to empty aggregation.")
+
+    evaluated_actions.extend(evaluate_move_actions(state=state, worlds=worlds))
+    evaluated_actions.extend(evaluate_switch_actions(state=state, worlds=worlds))
+
+    if not evaluated_actions:
+        return (
+            "No action",
+            0.0,
+            [],
+            "No legal actions were available to evaluate.",
+            assumptions_used,
+        )
 
     for evaluated in evaluated_actions:
         raw_scores[f"{evaluated.action_type}::{evaluated.name}"] = evaluated.score
@@ -444,3 +448,15 @@ def evaluate_battle_state(
     ranked_actions = [evaluated.to_dict() for evaluated in evaluated_actions]
 
     return best_action, best_conf, ranked_actions, explanation, assumptions_used
+
+def top_influential_world(
+    world_evaluations: List[ActionWorldEvaluation],
+) -> tuple[str | None, float | None]:
+    if not world_evaluations:
+        return None, None
+
+    top_world = max(
+        world_evaluations,
+        key=lambda world_eval: world_eval.world.weight,
+    )
+    return top_world.world.candidate.label, top_world.world.weight

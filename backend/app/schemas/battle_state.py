@@ -9,6 +9,7 @@ StatusCondition = Literal["brn", "par", "psn", "tox", "slp", "frz"]
 Weather = Literal["sun", "rain", "sand", "snow"]
 Terrain = Literal["electric", "grassy", "misty", "psychic"]
 ActionType = Literal["move", "switch"]
+DominantReason = Literal["tactical", "positional", "strategic", "uncertainty"]
 
 
 class StatBoosts(BaseModel):
@@ -82,6 +83,14 @@ class BattleStateRequest(BaseModel):
     format_context: FormatContextRequest = Field(default_factory=FormatContextRequest, alias="formatContext")
 
 
+class ScoreBreakdownResponse(BaseModel):
+    tactical: float
+    positional: float
+    strategic: float
+    uncertainty: float
+    total: float
+
+
 class RankedAction(BaseModel):
     actionType: ActionType
     name: str
@@ -93,7 +102,20 @@ class RankedAction(BaseModel):
     maxDamage: Optional[float] = None
     minDamagePercent: Optional[float] = None
     maxDamagePercent: Optional[float] = None
-    score: float
+
+    expectedScore: Optional[float] = None
+    worstScore: Optional[float] = None
+    bestScore: Optional[float] = None
+    stability: Optional[float] = None
+    topWorldLabel: Optional[str] = None
+    topWorldWeight: Optional[float] = None
+
+    immediateScore: float
+    continuationScore: float
+    uncertaintyPenalty: float
+    dominantReason: DominantReason
+    continuationDriven: bool
+
     confidence: float
     notes: List[str] = Field(default_factory=list)
     scoreBreakdown: ScoreBreakdownResponse
@@ -105,11 +127,3 @@ class EvaluatePositionResponse(BaseModel):
     rankedActions: List[RankedAction]
     explanation: str
     assumptionsUsed: List[str]
-
-
-class ScoreBreakdownResponse(BaseModel):
-    tactical: float
-    positional: float
-    strategic: float
-    uncertainty: float
-    total: float
