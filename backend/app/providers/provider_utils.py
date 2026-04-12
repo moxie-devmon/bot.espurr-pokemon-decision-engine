@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Dict, List
 
 from app.services.name_normalize import normalize_key
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-POKEMON_PATH = DATA_DIR / "pokemon.json"
-MOVES_PATH = DATA_DIR / "moves.json"
+
+def build_name_index(names: list[str]) -> Dict[str, str]:
+    return {
+        normalize_key(name): name
+        for name in names
+    }
 
 
 def search_keys(index: Dict[str, str], query: str, limit: int = 10) -> List[str]:

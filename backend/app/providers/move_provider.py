@@ -1,34 +1,23 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, Optional
 
 from app.domain.actions import MoveAction
-from app.providers.provider_utils import MOVES_PATH
+from app.providers.canonical_loader import load_moves_data
+from app.providers.provider_utils import build_name_index
 from app.services.name_normalize import normalize_key
 
-_moves_cache: Dict[str, Any] | None = None
 _moves_index: Dict[str, str] | None = None
 
 
-def load_moves_data() -> Dict[str, Any]:
-    global _moves_cache, _moves_index
-
-    if _moves_cache is None:
-        with open(MOVES_PATH, "r", encoding="utf-8") as f:
-            _moves_cache = json.load(f)
-
-        _moves_index = {
-            normalize_key(name): name
-            for name in _moves_cache.keys()
-        }
-
-    return _moves_cache
+def load_moves_data_map() -> Dict[str, Any]:
+    return load_moves_data()
 
 
 def get_moves_index() -> Dict[str, str]:
-    load_moves_data()
-    assert _moves_index is not None
+    global _moves_index
+    if _moves_index is None:
+        _moves_index = build_name_index(list(load_moves_data_map().keys()))
     return _moves_index
 
 
@@ -38,7 +27,7 @@ def resolve_move_name(name: str) -> str | None:
 
 
 def get_move_data(name: str) -> Optional[Dict[str, Any]]:
-    moves = load_moves_data()
+    moves = load_moves_data_map()
     resolved = resolve_move_name(name)
     if resolved is None:
         return None

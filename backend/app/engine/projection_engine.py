@@ -4,10 +4,17 @@ from dataclasses import replace
 
 from app.domain.actions import MoveAction, SwitchAction
 from app.domain.battle_state import BattleState, PokemonState, SideState
+from app.domain.move_tags import (
+    is_choice_item,
+    is_recovery_move,
+    is_setup_move,
+    normalized_name,
+)
 from app.engine.damage_engine import estimate_damage
 from app.engine.field_engine import apply_field_modifiers, hazard_on_entry_context
 from app.engine.response_engine import response_to_move_action
 from app.engine.speed_engine import turn_order_context
+from app.engine.type_engine import combined_multiplier
 from app.inference.models import OpponentResponse, OpponentWorld, ProjectionSummary
 
 
@@ -36,10 +43,7 @@ def _heal_pokemon_percent(pokemon: PokemonState, heal_percent: float) -> Pokemon
 
 
 def _power_multiplier_from_item(item: str | None, category: str) -> float:
-    if not item:
-        return 1.0
-
-    normalized = item.strip().lower()
+    normalized = normalized_name(item)
     if normalized == "choice band" and category == "physical":
         return 1.5
     if normalized == "choice specs" and category == "special":
@@ -48,9 +52,7 @@ def _power_multiplier_from_item(item: str | None, category: str) -> float:
 
 
 def _speed_multiplier_from_item(item: str | None) -> float:
-    if not item:
-        return 1.0
-    normalized = item.strip().lower()
+    normalized = normalized_name(item)
     if normalized == "choice scarf":
         return 1.5
     return 1.0
@@ -61,7 +63,7 @@ def _apply_focus_sash_if_applicable(
     defender_after: PokemonState,
     defender_item: str | None,
 ) -> tuple[PokemonState, bool]:
-    if not defender_item or defender_item.strip().lower() != "focus sash":
+    if normalized_name(defender_item) != "focus sash":
         return defender_after, False
 
     before_hp = _current_hp_value(defender_before)
@@ -78,11 +80,11 @@ def _is_immune_by_ability(
     move_action: MoveAction,
     defender_world: OpponentWorld | None,
 ) -> bool:
-    if defender_world is None or not defender_world.assumed_ability:
+    if defender_world is None:
         return False
 
-    ability = defender_world.assumed_ability.strip().lower()
-    if ability == "levitate" and move_action.move_type.lower() == "ground":
+    ability = normalized_name(defender_world.assumed_ability)
+    if ability == "levitate" and normalized_name(move_action.move_type) == "ground":
         return True
 
     return False
@@ -100,10 +102,7 @@ def _prepare_my_attacker_against_world(
     if my_action.move_category != "physical":
         return attacker
 
-    if not world.assumed_ability:
-        return attacker
-
-    if world.assumed_ability.strip().lower() != "intimidate":
+    if normalized_name(world.assumed_ability) != "intimidate":
         return attacker
 
     adjusted = replace(attacker, atk=float(attacker.atk or 100) * (2 / 3))
@@ -234,6 +233,64 @@ def _find_switch_target(side: SideState, species: str) -> PokemonState | None:
     return None
 
 
+def _switch_entry_penalty_percent(side: SideState, pokemon: PokemonState) -> tuple[float, list[str]]:
+    hazard_context, notes = hazard_on_entry_context(
+        switch_target=pokemon,
+        side_conditions=side.side_conditions,
+    )
+    return float(hazard_context["totalEntryPercent"]), notes
+
+
+def _best_replacement_from_bench(
+    side: SideState,
+    opposing_active: PokemonState,
+    *,
+    prefer_species: str | None = None,
+) -> tuple[PokemonState | None, list[str]]:
+    notes: list[str] = []
+
+    if not side.bench:
+        return None, ["No bench options available for replacement selection."]
+
+    if prefer_species:
+        preferred = next((p for p in side.bench if p.species == prefer_species), None)
+        if preferred is not None:
+            notes.append(f"Replacement selection honored explicit switch target: {prefer_species}.")
+            return preferred, notes
+
+    ranked: list[tuple[PokemonState, float]] = []
+
+    for pokemon in side.bench:
+        entry_pct, _ = _switch_entry_penalty_percent(side, pokemon)
+
+        defensive_best = 1.0
+        for stab_type in opposing_active.types:
+            mult, _ = combined_multiplier(stab_type, pokemon.types)
+            defensive_best = max(defensive_best, mult)
+
+        offensive_best = 1.0
+        for stab_type in pokemon.types:
+            mult, _ = combined_multiplier(stab_type, opposing_active.types)
+            offensive_best = max(offensive_best, mult)
+
+        hp_now = _current_hp_value(pokemon)
+        hp_max = _max_hp_value(pokemon)
+        hp_ratio = hp_now / hp_max
+
+        score = 0.0
+        score += hp_ratio * 20.0
+        score += offensive_best * 4.0
+        score -= defensive_best * 5.0
+        score -= entry_pct * 0.3
+
+        ranked.append((pokemon, score))
+
+    ranked.sort(key=lambda pair: pair[1], reverse=True)
+    best = ranked[0][0]
+    notes.append(f"Replacement selection chose {best.species or 'Unknown'} from ranked bench options.")
+    return best, notes
+
+
 def _apply_my_switch(
     state: BattleState,
     switch_action: SwitchAction,
@@ -306,16 +363,28 @@ def _apply_opponent_switch(
 def _apply_end_of_line_world_effects(
     opp_after: PokemonState,
     world: OpponentWorld,
+    response: OpponentResponse | None,
     notes: list[str],
 ) -> PokemonState:
-    if not world.assumed_item:
-        return opp_after
+    item_name = normalized_name(world.assumed_item)
 
-    if world.assumed_item.strip().lower() == "leftovers" and _current_hp_value(opp_after) > 0:
+    if item_name == "leftovers" and _current_hp_value(opp_after) > 0:
         healed = _heal_pokemon_percent(opp_after, 6.25)
         if _current_hp_value(healed) > _current_hp_value(opp_after):
             notes.append("Projected end-of-line recovery applied: inferred Leftovers restored HP.")
-        return healed
+        opp_after = healed
+
+    if response and response.kind == "move" and response.move_name:
+        move_name = response.move_name
+
+        if is_recovery_move(move_name) and _current_hp_value(opp_after) > 0:
+            healed = _heal_pokemon_percent(opp_after, 50.0)
+            if _current_hp_value(healed) > _current_hp_value(opp_after):
+                notes.append(f"Projected response recovery applied: {move_name} restores HP.")
+            opp_after = healed
+
+        if is_setup_move(move_name) and _current_hp_value(opp_after) > 0:
+            notes.append(f"Projected setup implication recorded: opponent used {move_name}.")
 
     return opp_after
 
@@ -409,7 +478,7 @@ def project_action_against_response(
             f"Opponent response after switch estimated {dmg['minPercent']:.1f}–{dmg['maxPercent']:.1f}% into the switch target."
         )
 
-        opp_after_final = _apply_end_of_line_world_effects(switched_state.opponent_side.active, world, notes)
+        opp_after_final = _apply_end_of_line_world_effects(switched_state.opponent_side.active, world, response, notes)
 
         if _current_hp_value(post_switch_target) <= 0:
             my_forced_switch = True
@@ -451,7 +520,7 @@ def project_action_against_response(
         )
         notes.extend(my_field_notes)
         notes.extend(response.notes)
-        notes.append("Opponent switch response is currently approximated after my attack lands on the current active slot.")
+        notes.append("Opponent switch response is approximated after my attack lands on the current active slot.")
 
         switched_state, new_opp_active, opp_switch_notes = _apply_opponent_switch(
             replace(state, opponent_side=replace(state.opponent_side, active=opp_after)),
@@ -464,7 +533,7 @@ def project_action_against_response(
             opp_active_species_after = new_opp_active.species
             opp_after_final = new_opp_active
         else:
-            opp_after_final = _apply_end_of_line_world_effects(opp_after, world, notes)
+            opp_after_final = _apply_end_of_line_world_effects(opp_after, world, response, notes)
             opp_active_species_after = opp_after_final.species
 
         if _current_hp_value(opp_after_final) <= 0:
@@ -603,15 +672,32 @@ def project_action_against_response(
         notes.extend(opp_field_notes)
         notes.append("Speed tie / uncertain order approximated as both actions resolving.")
 
-    opp_after = _apply_end_of_line_world_effects(opp_after, world, notes)
+    opp_after = _apply_end_of_line_world_effects(opp_after, world, response, notes)
 
     if _current_hp_value(my_after) <= 0:
         my_forced_switch = True
+        replacement, replacement_notes = _best_replacement_from_bench(
+            state.my_side,
+            opp_after,
+        )
+        notes.extend(replacement_notes)
+        if replacement is not None:
+            my_active_species_after = replacement.species
+    else:
+        my_active_species_after = my_after.species
+
     if _current_hp_value(opp_after) <= 0:
         opp_forced_switch = True
-
-    my_active_species_after = my_after.species
-    opp_active_species_after = opp_after.species
+        replacement, replacement_notes = _best_replacement_from_bench(
+            state.opponent_side,
+            my_after,
+            prefer_species=response.switch_target_species if response.kind == "switch" else None,
+        )
+        notes.extend(replacement_notes)
+        if replacement is not None:
+            opp_active_species_after = replacement.species
+    else:
+        opp_active_species_after = opp_after.species
 
     return ProjectionSummary(
         my_hp_before=my_before,

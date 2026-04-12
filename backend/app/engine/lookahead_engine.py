@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 from typing import List, Optional, Tuple
-
+from app.domain.move_tags import (
+    is_recovery_move,
+    is_setup_move,
+)
 from app.domain.actions import MoveAction, SwitchAction
 from app.domain.battle_state import BattleState
 from app.engine.projection_engine import project_action_against_response
@@ -130,6 +133,12 @@ def _score_followup_move_simple(
     opp_max_hp = max(1.0, float(opp_active.hp or 100))
     opp_hp_pct = (opp_hp / opp_max_hp) * 100.0
 
+    my_hp = float(
+        my_active.current_hp if my_active.current_hp is not None else my_active.hp or 100
+    )
+    my_max_hp = max(1.0, float(my_active.hp or 100))
+    my_hp_pct = (my_hp / my_max_hp) * 100.0
+
     score = 0.0
     score += float(getattr(move, "power", 0) or 0) * 0.15
 
@@ -145,8 +154,34 @@ def _score_followup_move_simple(
     if (getattr(move, "priority", 0) or 0) > 0:
         score += 2.0
 
+    move_name = str(getattr(move, "name", "") or "").strip().lower()
     category = str(getattr(move, "category", "") or "").lower()
-    if category == "status":
+
+    if is_setup_move(move_name):
+        score += 18.0
+
+        if my_hp_pct >= 70.0:
+            score += 8.0
+        elif my_hp_pct >= 50.0:
+            score += 4.0
+
+        if opp_hp_pct >= 60.0:
+            score += 4.0
+        elif opp_hp_pct >= 40.0:
+            score += 2.0
+
+        if move_type and move_type in my_active.types:
+            score += 2.0
+
+    elif is_recovery_move(move_name):
+        if my_hp_pct <= 40.0:
+            score += 12.0
+        elif my_hp_pct <= 65.0:
+            score += 6.0
+        else:
+            score -= 2.0
+
+    elif category == "status":
         score -= 4.0
 
     return score
@@ -318,6 +353,9 @@ def _candidate_next_actions(
     """
     candidates: List[tuple[object, float, str]] = []
 
+    move_candidates: List[tuple[object, float, str]] = []
+    best_setup_score: float | None = None
+
     for move in followup_state.moves:
         score = _score_followup_move_simple(followup_state, move)
         move_name = (getattr(move, "name", None) or "Unknown move").strip()
@@ -328,7 +366,13 @@ def _candidate_next_actions(
             base_power=int(getattr(move, "power", 0) or 0),
             priority=int(getattr(move, "priority", 0) or 0),
         )
-        candidates.append((move_action, score, move_name))
+        move_candidates.append((move_action, score, move_name))
+
+        if is_setup_move(move_name):
+            if best_setup_score is None or score > best_setup_score:
+                best_setup_score = score
+
+    candidates.extend(move_candidates)
 
     for switch_target in followup_state.my_side.bench:
         switch_score, _ = score_switch(
@@ -336,6 +380,11 @@ def _candidate_next_actions(
             opposing_active=followup_state.opponent_side.active,
             entry_side_conditions=followup_state.my_side.side_conditions,
         )
+
+        # If a strong setup continuation exists, do not let switches dominate too easily.
+        if best_setup_score is not None and best_setup_score >= 20.0:
+            switch_score -= 5.0
+
         switch_action = SwitchAction(target_species=switch_target.species or "Unknown switch")
         candidates.append((switch_action, switch_score, switch_target.species or "Unknown switch"))
 

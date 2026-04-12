@@ -136,6 +136,40 @@ def score_projection_summary(
             uncertainty -= 2.0
             notes.append("Uncertainty penalty: speed tie / uncertain turn order.")
 
+        normalized_move_name = (my_action.move_name or "").strip().lower()
+        setup_moves = {
+            "dragon dance",
+            "swords dance",
+            "nasty plot",
+            "calm mind",
+            "bulk up",
+            "agility",
+            "trailblaze",
+            "iron defense",
+            "curse",
+            "quiver dance",
+        }
+
+        if normalized_move_name in setup_moves:
+            if not projection.my_fainted:
+                strategic += 8.0
+                notes.append("Strategic boost: projected line gains setup value for future turns.")
+
+                if projection.my_damage_taken_pct_current <= 35.0:
+                    strategic += 6.0
+                    notes.append("Additional boost: setup line is projected to remain relatively healthy.")
+
+                if projection.order_context == "attacker_first":
+                    strategic += 3.0
+                    notes.append("Additional boost: setup resolves before the opponent's pressure line.")
+
+                if projection.opponent_switched or projection.order_context == "attacker_first_vs_switch_response":
+                    strategic += 5.0
+                    notes.append("Major boost: setup exploits a likely passive or switching opponent response.")
+            else:
+                strategic -= 6.0
+                notes.append("Penalty: setup line fails because the active is projected to faint.")
+
     if isinstance(my_action, SwitchAction):
         switch_target = next(
             (pokemon for pokemon in state.my_side.bench if pokemon.species == my_action.target_species),
@@ -173,7 +207,6 @@ def score_projection_summary(
         ),
         notes,
     )
-
 
 def aggregate_response_scores(
     response_scores: List[tuple[float, float, dict]],
@@ -296,10 +329,14 @@ def build_move_evaluated_action(
     top_world_label: str | None = None,
     top_world_weight: float | None = None,
 ) -> EvaluatedAction:
+    category = str(getattr(move, "category", "Physical") or "Physical").lower()
+    if category not in {"physical", "special", "status"}:
+        category = "physical"
+
     action = MoveAction(
         move_name=(move.name or "Unknown move").strip(),
         move_type=move.type,
-        move_category=move.category,
+        move_category=category,
         base_power=move.power or 0,
         priority=int(getattr(move, "priority", 0) or 0),
     )
@@ -337,14 +374,17 @@ def evaluate_move_actions(
     results: List[EvaluatedAction] = []
 
     for move in state.moves:
+        category = str(getattr(move, "category", "Physical") or "Physical").lower()
+        if category not in {"physical", "special", "status"}:
+            category = "physical"
+
         my_action = MoveAction(
             move_name=(move.name or "Unknown move").strip(),
             move_type=move.type,
-            move_category=move.category,
+            move_category=category,
             base_power=move.power or 0,
             priority=int(getattr(move, "priority", 0) or 0),
         )
-
         world_evaluations = [
             evaluate_action_in_world(
                 state=state,

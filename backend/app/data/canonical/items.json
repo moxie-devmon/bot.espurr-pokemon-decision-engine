@@ -1,0 +1,82 @@
+{
+  "Air Balloon": {
+    "effect_family": "ground_immunity",
+    "name": "Air Balloon"
+  },
+  "Assault Vest": {
+    "effect_family": "special_bulk",
+    "name": "Assault Vest"
+  },
+  "Black Glasses": {
+    "effect_family": "type_boost_dark",
+    "name": "Black Glasses"
+  },
+  "Booster Energy": {
+    "effect_family": "quark_proto_boost",
+    "name": "Booster Energy"
+  },
+  "Choice Band": {
+    "effect_family": "choice_attack",
+    "name": "Choice Band"
+  },
+  "Choice Scarf": {
+    "effect_family": "choice_speed",
+    "name": "Choice Scarf"
+  },
+  "Choice Specs": {
+    "effect_family": "choice_special_attack",
+    "name": "Choice Specs"
+  },
+  "Focus Sash": {
+    "effect_family": "survive_at_1hp",
+    "name": "Focus Sash"
+  },
+  "Grassy Seed": {
+    "effect_family": "terrain_seed",
+    "name": "Grassy Seed"
+  },
+  "Heavy-Duty Boots": {
+    "effect_family": "ignore_hazards",
+    "name": "Heavy-Duty Boots"
+  },
+  "Leftovers": {
+    "effect_family": "end_of_turn_recovery",
+    "name": "Leftovers"
+  },
+  "Life Orb": {
+    "effect_family": "damage_boost_recoil",
+    "name": "Life Orb"
+  },
+  "Loaded Dice": {
+    "effect_family": "multihit_bias",
+    "name": "Loaded Dice"
+  },
+  "Lum Berry": {
+    "effect_family": "status_cure_once",
+    "name": "Lum Berry"
+  },
+  "Metal Coat": {
+    "effect_family": "type_boost_steel",
+    "name": "Metal Coat"
+  },
+  "Miracle Seed": {
+    "effect_family": "type_boost_grass",
+    "name": "Miracle Seed"
+  },
+  "Rocky Helmet": {
+    "effect_family": "contact_chip",
+    "name": "Rocky Helmet"
+  },
+  "Shuca Berry": {
+    "effect_family": "ground_resist_once",
+    "name": "Shuca Berry"
+  },
+  "Silk Scarf": {
+    "effect_family": "type_boost_normal",
+    "name": "Silk Scarf"
+  },
+  "Terrain Extender": {
+    "effect_family": "extend_terrain",
+    "name": "Terrain Extender"
+  }
+}

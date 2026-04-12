@@ -1,0 +1,16 @@
+{
+  "gen9ou": {
+    "battle_type": "singles",
+    "display_name": "Gen 9 OU",
+    "format_id": "gen9ou",
+    "generation": 9,
+    "rules": [
+      "Species Clause",
+      "Sleep Moves Clause",
+      "Evasion Moves Clause",
+      "OHKO Clause",
+      "Endless Battle Clause"
+    ],
+    "tera_allowed": true
+  }
+}

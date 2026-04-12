@@ -1,0 +1,27 @@
+{
+  "room_effects": {
+    "trickroom": {}
+  },
+  "side_conditions": {
+    "auroraveil": {},
+    "lightscreen": {},
+    "reflect": {},
+    "spikes": {},
+    "stealthrock": {},
+    "stickyweb": {},
+    "tailwind": {},
+    "toxicspikes": {}
+  },
+  "terrains": {
+    "electric": {},
+    "grassy": {},
+    "misty": {},
+    "psychic": {}
+  },
+  "weathers": {
+    "rain": {},
+    "sand": {},
+    "snow": {},
+    "sun": {}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "brn": {
+    "name": "Burn"
+  },
+  "frz": {
+    "name": "Freeze"
+  },
+  "par": {
+    "name": "Paralysis"
+  },
+  "psn": {
+    "name": "Poison"
+  },
+  "slp": {
+    "name": "Sleep"
+  },
+  "tox": {
+    "name": "Toxic Poison"
+  }
+}

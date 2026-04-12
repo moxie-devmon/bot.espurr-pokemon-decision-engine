@@ -1,0 +1,722 @@
+{
+  "Azumarill": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 50,
+      "def": 80,
+      "hp": 100,
+      "spa": 60,
+      "spd": 80,
+      "spe": 50
+    },
+    "forme": null,
+    "name": "Azumarill",
+    "num": null,
+    "types": [
+      "Water",
+      "Fairy"
+    ],
+    "weightkg": null
+  },
+  "Baxcalibur": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 145,
+      "def": 92,
+      "hp": 115,
+      "spa": 75,
+      "spd": 86,
+      "spe": 87
+    },
+    "forme": null,
+    "name": "Baxcalibur",
+    "num": null,
+    "types": [
+      "Dragon",
+      "Ice"
+    ],
+    "weightkg": null
+  },
+  "Cinderace": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 116,
+      "def": 75,
+      "hp": 80,
+      "spa": 65,
+      "spd": 75,
+      "spe": 119
+    },
+    "forme": null,
+    "name": "Cinderace",
+    "num": null,
+    "types": [
+      "Fire"
+    ],
+    "weightkg": null
+  },
+  "Clefable": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 70,
+      "def": 73,
+      "hp": 95,
+      "spa": 95,
+      "spd": 90,
+      "spe": 60
+    },
+    "forme": null,
+    "name": "Clefable",
+    "num": null,
+    "types": [
+      "Fairy"
+    ],
+    "weightkg": null
+  },
+  "Corviknight": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 87,
+      "def": 105,
+      "hp": 98,
+      "spa": 53,
+      "spd": 85,
+      "spe": 67
+    },
+    "forme": null,
+    "name": "Corviknight",
+    "num": null,
+    "types": [
+      "Flying",
+      "Steel"
+    ],
+    "weightkg": null
+  },
+  "Dragapult": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 120,
+      "def": 75,
+      "hp": 88,
+      "spa": 100,
+      "spd": 75,
+      "spe": 142
+    },
+    "forme": null,
+    "name": "Dragapult",
+    "num": null,
+    "types": [
+      "Dragon",
+      "Ghost"
+    ],
+    "weightkg": null
+  },
+  "Dragonite": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 134,
+      "def": 95,
+      "hp": 91,
+      "spa": 100,
+      "spd": 100,
+      "spe": 80
+    },
+    "forme": null,
+    "name": "Dragonite",
+    "num": null,
+    "types": [
+      "Dragon",
+      "Flying"
+    ],
+    "weightkg": null
+  },
+  "Garchomp": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 130,
+      "def": 95,
+      "hp": 108,
+      "spa": 80,
+      "spd": 85,
+      "spe": 102
+    },
+    "forme": null,
+    "name": "Garchomp",
+    "num": null,
+    "types": [
+      "Dragon",
+      "Ground"
+    ],
+    "weightkg": null
+  },
+  "Garganacl": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 100,
+      "def": 130,
+      "hp": 100,
+      "spa": 45,
+      "spd": 90,
+      "spe": 35
+    },
+    "forme": null,
+    "name": "Garganacl",
+    "num": null,
+    "types": [
+      "Rock"
+    ],
+    "weightkg": null
+  },
+  "Gholdengo": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 60,
+      "def": 95,
+      "hp": 87,
+      "spa": 133,
+      "spd": 91,
+      "spe": 84
+    },
+    "forme": null,
+    "name": "Gholdengo",
+    "num": null,
+    "types": [
+      "Steel",
+      "Ghost"
+    ],
+    "weightkg": null
+  },
+  "Gliscor": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 95,
+      "def": 125,
+      "hp": 75,
+      "spa": 45,
+      "spd": 75,
+      "spe": 95
+    },
+    "forme": null,
+    "name": "Gliscor",
+    "num": null,
+    "types": [
+      "Ground",
+      "Flying"
+    ],
+    "weightkg": null
+  },
+  "Great Tusk": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 131,
+      "def": 131,
+      "hp": 115,
+      "spa": 53,
+      "spd": 53,
+      "spe": 87
+    },
+    "forme": null,
+    "name": "Great Tusk",
+    "num": null,
+    "types": [
+      "Ground",
+      "Fighting"
+    ],
+    "weightkg": null
+  },
+  "Heatran": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 90,
+      "def": 106,
+      "hp": 91,
+      "spa": 130,
+      "spd": 106,
+      "spe": 77
+    },
+    "forme": null,
+    "name": "Heatran",
+    "num": null,
+    "types": [
+      "Fire",
+      "Steel"
+    ],
+    "weightkg": null
+  },
+  "Iron Hands": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 140,
+      "def": 108,
+      "hp": 154,
+      "spa": 50,
+      "spd": 68,
+      "spe": 50
+    },
+    "forme": null,
+    "name": "Iron Hands",
+    "num": null,
+    "types": [
+      "Fighting",
+      "Electric"
+    ],
+    "weightkg": null
+  },
+  "Iron Valiant": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 130,
+      "def": 90,
+      "hp": 74,
+      "spa": 120,
+      "spd": 60,
+      "spe": 116
+    },
+    "forme": null,
+    "name": "Iron Valiant",
+    "num": null,
+    "types": [
+      "Fairy",
+      "Fighting"
+    ],
+    "weightkg": null
+  },
+  "Kingambit": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 135,
+      "def": 120,
+      "hp": 100,
+      "spa": 60,
+      "spd": 85,
+      "spe": 50
+    },
+    "forme": null,
+    "name": "Kingambit",
+    "num": null,
+    "types": [
+      "Dark",
+      "Steel"
+    ],
+    "weightkg": null
+  },
+  "Landorus": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 145,
+      "def": 90,
+      "hp": 89,
+      "spa": 105,
+      "spd": 80,
+      "spe": 91
+    },
+    "forme": null,
+    "name": "Landorus",
+    "num": null,
+    "types": [
+      "Ground",
+      "Flying"
+    ],
+    "weightkg": null
+  },
+  "Moltres": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 100,
+      "def": 90,
+      "hp": 90,
+      "spa": 125,
+      "spd": 85,
+      "spe": 90
+    },
+    "forme": null,
+    "name": "Moltres",
+    "num": null,
+    "types": [
+      "Fire",
+      "Flying"
+    ],
+    "weightkg": null
+  },
+  "Ogerpon": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 120,
+      "def": 84,
+      "hp": 80,
+      "spa": 60,
+      "spd": 96,
+      "spe": 110
+    },
+    "forme": null,
+    "name": "Ogerpon",
+    "num": null,
+    "types": [
+      "Grass"
+    ],
+    "weightkg": null
+  },
+  "Pelipper": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 50,
+      "def": 100,
+      "hp": 60,
+      "spa": 95,
+      "spd": 70,
+      "spe": 65
+    },
+    "forme": null,
+    "name": "Pelipper",
+    "num": null,
+    "types": [
+      "Water",
+      "Flying"
+    ],
+    "weightkg": null
+  },
+  "Rillaboom": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 125,
+      "def": 90,
+      "hp": 100,
+      "spa": 60,
+      "spd": 70,
+      "spe": 85
+    },
+    "forme": null,
+    "name": "Rillaboom",
+    "num": null,
+    "types": [
+      "Grass"
+    ],
+    "weightkg": null
+  },
+  "Rotom Wash": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 65,
+      "def": 107,
+      "hp": 50,
+      "spa": 105,
+      "spd": 107,
+      "spe": 86
+    },
+    "forme": null,
+    "name": "Rotom Wash",
+    "num": null,
+    "types": [
+      "Electric",
+      "Water"
+    ],
+    "weightkg": null
+  },
+  "Skeledirge": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 75,
+      "def": 100,
+      "hp": 104,
+      "spa": 110,
+      "spd": 75,
+      "spe": 66
+    },
+    "forme": null,
+    "name": "Skeledirge",
+    "num": null,
+    "types": [
+      "Fire",
+      "Ghost"
+    ],
+    "weightkg": null
+  },
+  "Sneasler": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 130,
+      "def": 60,
+      "hp": 80,
+      "spa": 40,
+      "spd": 80,
+      "spe": 120
+    },
+    "forme": null,
+    "name": "Sneasler",
+    "num": null,
+    "types": [
+      "Fighting",
+      "Poison"
+    ],
+    "weightkg": null
+  },
+  "Ting Lu": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 110,
+      "def": 125,
+      "hp": 155,
+      "spa": 55,
+      "spd": 80,
+      "spe": 45
+    },
+    "forme": null,
+    "name": "Ting Lu",
+    "num": null,
+    "types": [
+      "Dark",
+      "Ground"
+    ],
+    "weightkg": null
+  },
+  "Toxapex": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 63,
+      "def": 152,
+      "hp": 50,
+      "spa": 53,
+      "spd": 142,
+      "spe": 35
+    },
+    "forme": null,
+    "name": "Toxapex",
+    "num": null,
+    "types": [
+      "Water",
+      "Poison"
+    ],
+    "weightkg": null
+  },
+  "Venusaur": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 82,
+      "def": 83,
+      "hp": 80,
+      "spa": 100,
+      "spd": 100,
+      "spe": 80
+    },
+    "forme": null,
+    "name": "Venusaur",
+    "num": null,
+    "types": [
+      "Grass",
+      "Poison"
+    ],
+    "weightkg": null
+  },
+  "Weavile": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 120,
+      "def": 65,
+      "hp": 70,
+      "spa": 45,
+      "spd": 85,
+      "spe": 125
+    },
+    "forme": null,
+    "name": "Weavile",
+    "num": null,
+    "types": [
+      "Dark",
+      "Ice"
+    ],
+    "weightkg": null
+  },
+  "Zapdos": {
+    "abilities": {
+      "0": null,
+      "1": null,
+      "H": null,
+      "S": null
+    },
+    "base_species": null,
+    "base_stats": {
+      "atk": 90,
+      "def": 85,
+      "hp": 90,
+      "spa": 125,
+      "spd": 90,
+      "spe": 100
+    },
+    "forme": null,
+    "name": "Zapdos",
+    "num": null,
+    "types": [
+      "Electric",
+      "Flying"
+    ],
+    "weightkg": null
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "Contrary": {
+    "effect_family": "stat_inversion",
+    "name": "Contrary"
+  },
+  "Defiant": {
+    "effect_family": "stat_drop_punish",
+    "name": "Defiant"
+  },
+  "Good as Gold": {
+    "effect_family": "status_immunity",
+    "name": "Good as Gold"
+  },
+  "Grassy Surge": {
+    "effect_family": "set_terrain",
+    "name": "Grassy Surge"
+  },
+  "Inner Focus": {
+    "effect_family": "flinch_immunity",
+    "name": "Inner Focus"
+  },
+  "Intimidate": {
+    "effect_family": "attack_drop_on_switchin",
+    "name": "Intimidate"
+  },
+  "Levitate": {
+    "effect_family": "ground_immunity",
+    "name": "Levitate"
+  },
+  "Multiscale": {
+    "effect_family": "full_hp_damage_reduction",
+    "name": "Multiscale"
+  },
+  "Overgrow": {
+    "effect_family": "low_hp_type_boost",
+    "name": "Overgrow"
+  },
+  "Pressure": {
+    "effect_family": "pp_pressure",
+    "name": "Pressure"
+  },
+  "Protosynthesis": {
+    "effect_family": "sun_or_booster_boost",
+    "name": "Protosynthesis"
+  },
+  "Supreme Overlord": {
+    "effect_family": "ally_faint_boost",
+    "name": "Supreme Overlord"
+  }
+}

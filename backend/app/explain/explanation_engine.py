@@ -249,7 +249,12 @@ def build_inference_summary(inference: InferenceResult | None) -> str:
         return "No plausible opposing active set candidates are currently available."
 
     normalized = inference.normalized_weights()
-    top_candidate = max(inference.candidates, key=lambda candidate: candidate.weight)
+    live_candidates = [candidate for candidate in inference.candidates if not candidate.is_eliminated]
+    if not live_candidates:
+        return "No non-eliminated opposing set candidates remain."
+
+    normalized = inference.normalized_weights()
+    top_candidate = max(live_candidates, key=lambda candidate: candidate.final_weight)
     top_weight = normalized.get(top_candidate.label, 0.0)
 
     return (

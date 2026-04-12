@@ -1,0 +1,127 @@
+{
+  "Adamant": {
+    "minus": "spa",
+    "name": "Adamant",
+    "plus": "atk"
+  },
+  "Bashful": {
+    "minus": null,
+    "name": "Bashful",
+    "plus": null
+  },
+  "Bold": {
+    "minus": "atk",
+    "name": "Bold",
+    "plus": "def"
+  },
+  "Brave": {
+    "minus": "spe",
+    "name": "Brave",
+    "plus": "atk"
+  },
+  "Calm": {
+    "minus": "atk",
+    "name": "Calm",
+    "plus": "spd"
+  },
+  "Careful": {
+    "minus": "spa",
+    "name": "Careful",
+    "plus": "spd"
+  },
+  "Docile": {
+    "minus": null,
+    "name": "Docile",
+    "plus": null
+  },
+  "Gentle": {
+    "minus": "def",
+    "name": "Gentle",
+    "plus": "spd"
+  },
+  "Hardy": {
+    "minus": null,
+    "name": "Hardy",
+    "plus": null
+  },
+  "Hasty": {
+    "minus": "def",
+    "name": "Hasty",
+    "plus": "spe"
+  },
+  "Impish": {
+    "minus": "spa",
+    "name": "Impish",
+    "plus": "def"
+  },
+  "Jolly": {
+    "minus": "spa",
+    "name": "Jolly",
+    "plus": "spe"
+  },
+  "Lax": {
+    "minus": "spd",
+    "name": "Lax",
+    "plus": "def"
+  },
+  "Lonely": {
+    "minus": "def",
+    "name": "Lonely",
+    "plus": "atk"
+  },
+  "Mild": {
+    "minus": "def",
+    "name": "Mild",
+    "plus": "spa"
+  },
+  "Modest": {
+    "minus": "atk",
+    "name": "Modest",
+    "plus": "spa"
+  },
+  "Naive": {
+    "minus": "spd",
+    "name": "Naive",
+    "plus": "spe"
+  },
+  "Naughty": {
+    "minus": "spd",
+    "name": "Naughty",
+    "plus": "atk"
+  },
+  "Quiet": {
+    "minus": "spe",
+    "name": "Quiet",
+    "plus": "spa"
+  },
+  "Quirky": {
+    "minus": null,
+    "name": "Quirky",
+    "plus": null
+  },
+  "Rash": {
+    "minus": "spd",
+    "name": "Rash",
+    "plus": "spa"
+  },
+  "Relaxed": {
+    "minus": "spe",
+    "name": "Relaxed",
+    "plus": "def"
+  },
+  "Sassy": {
+    "minus": "spe",
+    "name": "Sassy",
+    "plus": "spd"
+  },
+  "Serious": {
+    "minus": null,
+    "name": "Serious",
+    "plus": null
+  },
+  "Timid": {
+    "minus": "atk",
+    "name": "Timid",
+    "plus": "spe"
+  }
+}
